@@ -1,13 +1,20 @@
-const net = require('net')
+import net from 'net'
 
-const {
-  parseJsonFile
-} = require('./utils')
+import {
+  parseJsonFile,
+} from './utils.js'
 
 const config = parseJsonFile('client.config')
 
-console.log(config)
+console.log('debug:', 'client config', JSON.stringify(config, null, 2))
 
-const client = net.createConnection(config)
+const local = net.createServer()
 
-client.on('connect', console.log)
+const remote = net.createConnection(config.remotePort, config.remoteAddr)
+
+local.on('connection', function (client) {
+  client.pipe(remote)
+  remote.pipe(client)
+})
+
+local.listen(config.localPort, config.localAddr)

@@ -15,7 +15,7 @@ import {
 
 const config = parseJsonFile('server.config')
 
-console.log(config)
+console.log('debug:', 'server config', JSON.stringify(config, null, 2))
 
 const server = net.createServer()
 
@@ -26,6 +26,7 @@ server.listen(config)
 // def
 
 function onConnection (client) {
+  console.log('on client')
   client.once('data', onClientAuth(client))
   client.on('error', onClientError(client))
 }
