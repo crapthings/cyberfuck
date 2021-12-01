@@ -1,0 +1,119 @@
+import net from 'net'
+
+import {
+  parseJsonFile,
+} from './utils.js'
+
+import {
+  PROTOCOL_VERSION_5,
+  NO_AUTHENTICATION_REQUIRED,
+  NO_ACCEPTABLE_METHODS,
+  ADDRESS_TYPE_DOMAINNAME,
+} from './constants.js'
+
+// init
+
+const config = parseJsonFile('server.config')
+
+console.log(config)
+
+const server = net.createServer()
+
+server.on('connection', onConnection)
+
+server.listen(config)
+
+// def
+
+function onConnection (client) {
+  client.once('data', onClientAuth(client))
+  client.on('error', onClientError(client))
+}
+
+function onClientAuth (client) {
+  return function (data) {
+    if (getProtocolVersion(data) !== PROTOCOL_VERSION_5) {
+      client.destroyed || client.destroy()
+      return
+    }
+
+    const response = Buffer.from([
+      PROTOCOL_VERSION_5,
+      NO_AUTHENTICATION_REQUIRED
+    ])
+
+    client.write(response, () => {
+      client.once('data', onRequestType(client))
+    })
+  }
+}
+
+function onClientError (client) {
+  return function (err) {
+    client.destroyed || cleint.destroy()
+  }
+}
+
+function getProtocolVersion (data) {
+  return data[0]
+}
+
+function onRequestType (client) {
+  return function (data) {
+    if (getAddressType(data) === ADDRESS_TYPE_DOMAINNAME) {
+      const host = parseDomainName(data)
+      const port = parsePort(data)
+      const reply = getReply(data)
+      request({ client, data, host, port, reply })
+    }
+  }
+}
+
+function request ({ client, data, host, port, reply }) {
+  const socket = new net.Socket()
+
+  socket.connect(port, host, function () {
+    if (client.writable) {
+      client.write(reply, () => {
+        client.pipe(socket)
+        socket.pipe(client)
+      })
+    }
+  })
+
+  socket.on('close', function () {
+    socket.destroyed || socket.destroy()
+  })
+
+  socket.on('error', function (err) {
+    if (err) {
+      console.log(err)
+      reply[1] = 0x03
+      if (client.writable) {
+        client.end(reply)
+      }
+      socket.end()
+    }
+  })
+}
+
+function getAddressType (data) {
+  return data[3]
+}
+
+function parseDomainName (data) {
+  const len = 5 + parseInt(data[4], 10)
+  return data.slice(5, len).toString('utf8')
+}
+
+function parsePort (data) {
+  const bytes = data.slice(data.length - 2)
+  return bytes.readInt16BE(0)
+}
+
+function getReply (data) {
+  const reply = Buffer.allocUnsafe(data.length)
+  data.copy(reply)
+  reply[1] = 0x00
+  return reply
+}
