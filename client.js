@@ -1,7 +1,6 @@
 import net from 'net'
 import { serialize } from 'v8'
 import through2 from 'through2'
-import protobuf from 'protobufjs'
 
 import {
   parseJsonFile
