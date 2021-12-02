@@ -33,6 +33,7 @@ function onConnection (client) {
 
 function onClientAuth (client) {
   return function (data) {
+    console.log('debug', data)
     if (getProtocolVersion(data) !== PROTOCOL_VERSION_5) {
       client.destroyed || client.destroy()
       return
