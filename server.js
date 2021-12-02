@@ -1,4 +1,5 @@
 import net from 'net'
+import { deserialize } from 'v8'
 
 import {
   parseJsonFile,
@@ -6,6 +7,7 @@ import {
 
 import {
   PROTOCOL_VERSION_5,
+  AUTH_METHOD,
   NO_AUTHENTICATION_REQUIRED,
   NO_ACCEPTABLE_METHODS,
   ADDRESS_TYPE_DOMAINNAME,
@@ -26,15 +28,22 @@ server.listen(config)
 // def
 
 function onConnection (client) {
-  console.log('on client')
   client.once('data', onClientAuth(client))
   client.on('error', onClientError(client))
 }
 
 function onClientAuth (client) {
   return function (data) {
-    console.log('debug', data)
-    if (getProtocolVersion(data) !== PROTOCOL_VERSION_5) {
+    // console.log('debug:', data)
+    if (getProtocolVersion(data) !== PROTOCOL_VERSION_5 || getAuthMethod(data) !== AUTH_METHOD) {
+      client.destroyed || client.destroy()
+      return
+    }
+
+    const { username, password } = authParser(data)
+
+    if (username !== config.username || password !== config.password) {
+      console.log('auth failed')
       client.destroyed || client.destroy()
       return
     }
@@ -58,6 +67,10 @@ function onClientError (client) {
 
 function getProtocolVersion (data) {
   return data[0]
+}
+
+function getAuthMethod (data) {
+  return data[1]
 }
 
 function onRequestType (client) {
@@ -118,4 +131,10 @@ function getReply (data) {
   data.copy(reply)
   reply[1] = 0x00
   return reply
+}
+
+function authParser (data) {
+  const auth = deserialize(data.slice(2))
+  console.log(auth)
+  return auth
 }

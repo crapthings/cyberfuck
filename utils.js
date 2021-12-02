@@ -6,3 +6,5 @@ export function parseJsonFile (filename) {
   const file = String(fs.readFileSync(filepath))
   return JSON.parse(file)
 }
+
+export function noop () {}

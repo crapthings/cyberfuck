@@ -1,3 +1,7 @@
 {
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "protobufjs": "^6.11.2",
+    "through2": "^4.0.2"
+  }
 }
