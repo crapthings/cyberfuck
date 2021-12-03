@@ -1,8 +1,14 @@
+import crypto from 'crypto'
 import net from 'net'
 import { deserialize } from 'v8'
+import stream, { Readable, Writable } from 'stream'
 
 import {
   parseJsonFile,
+  encrypt,
+  decrypt,
+  encryptor,
+  decryptor,
 } from './utils.js'
 
 import {
@@ -26,7 +32,6 @@ server.on('connection', onConnection)
 server.listen(config)
 
 // def
-
 function onConnection (client) {
   client.once('data', onClientAuth(client))
   client.on('error', onClientError(client))
@@ -34,8 +39,8 @@ function onConnection (client) {
 
 function onClientAuth (client) {
   return function (data) {
+    data = decrypt(data, config.password)
     console.log('debug:', data)
-    console.log('debug:', data.toString())
     if (getProtocolVersion(data) !== PROTOCOL_VERSION_5 || getAuthMethod(data) !== AUTH_METHOD) {
       client.destroyed || client.destroy()
       return
@@ -54,7 +59,7 @@ function onClientAuth (client) {
       NO_AUTHENTICATION_REQUIRED
     ])
 
-    client.write(response, () => {
+    client.write(encrypt(response, config.password), () => {
       client.once('data', onRequestType(client))
     })
   }
@@ -76,23 +81,32 @@ function getAuthMethod (data) {
 
 function onRequestType (client) {
   return function (data) {
+    data = decrypt(data, config.password)
+    console.log(data)
     if (getAddressType(data) === ADDRESS_TYPE_DOMAINNAME) {
       const host = parseDomainName(data)
       const port = parsePort(data)
       const reply = getReply(data)
+      console.log('wft', reply)
       request({ client, data, host, port, reply })
     }
   }
 }
 
 function request ({ client, data, host, port, reply }) {
+  console.log('request', host, port, reply)
+
   const socket = new net.Socket()
 
   socket.connect(port, host, function () {
     if (client.writable) {
-      client.write(reply, () => {
-        client.pipe(socket)
-        socket.pipe(client)
+      client.write(encrypt(reply, config.password), () => {
+        // client.pipe(socket)
+        // socket.pipe(client)
+        // return
+
+        client.pipe(decryptor(config.password)).pipe(socket)
+        socket.pipe(encryptor(config.password)).pipe(client)
       })
     }
   })
@@ -106,7 +120,7 @@ function request ({ client, data, host, port, reply }) {
       console.log(err)
       reply[1] = 0x03
       if (client.writable) {
-        client.end(reply)
+        client.end(encrypt(reply, config.password))
       }
       socket.end()
     }
